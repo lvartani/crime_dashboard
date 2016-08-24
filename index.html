@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <title>Crime Data</title>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" type="text/css" href="css/dc.css">
+    <link rel="stylesheet" type="text/css" href="css/leaflet.css">
+    <link rel="stylesheet" type="text/css" href="css/bootstrap.css">
+    <link rel="stylesheet" type="text/css" href="css/main.css">
+</head>
+<body>
+<div class="container-fluid">
+  <div class="row">
+    <div class="col-xs-12 dc-data-count dc-chart" id="data-count">
+      <h2>Crime in Boston
+        <small>
+          <span class="filter-count"></span> selected out of <span class="total-count"></span> records |
+           <a id="all" href="#">Reset All</a>
+          </span>
+        </small>
+      </h2>
+    </div>
+  </div>
+  <div class="row" id="control-row">
+    <div class="col-xs-2 pie-chart">
+      <h4>Year <small><a id="year">reset</a></small></h4>
+      <div class="dc-chart" id="chart-ring-year"></div>
+    </div>
+    <div class="col-xs-2 pie-chart">
+      <h4>Month <small><a id="month" href="#">reset</a></small></h4>
+      <div class="dc-chart" id="chart-ring-month"></div>
+    </div>
+    <div class="col-xs-2 pie-chart">
+      <h4>Day <small><a id="day">reset</a></small></h4>
+      <div id="chart-ring-day" class="dc-chart"></div>
+    </div>
+    <div class="col-xs-6">
+      <h4>Incidents</h4>
+      <div id="map"></div>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-xs-6 col-md-6">
+      <div class="dc-chart" id="weapon-count"></div>
+    </div>
+    <div class="col-xs-6 col-md-6">
+      <div class="dc-chart" id="date-count"></div>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-xs-12">
+      <table class="table table-bordered table-striped" id="data-table">
+        <thead>
+          <tr class="header">
+            <th>Incident Description</th>
+            <th>Domestic</th>
+            <th>Weapon Type</th>
+            <th>Shooting</th>
+          </tr>
+        </thead>
+      </table>
+    </div>
+  </div>
+</div>
+<script type="text/javascript" src="js/d3.js"></script>
+<script type="text/javascript" src="js/crossfilter.js"></script>
+<script type="text/javascript" src="js/dc.js"></script>
+<script type="text/javascript" src="js/leaflet.js"></script>
+<script type="text/javascript" src="js/underscore-min.js"></script>
+<script type="text/javascript">
+var dateDim;
+/* instantiate and configure map */
+var map = L.map('map', {
+    center: [42.359112967318644, -71.06196356855469],
+    zoom: 11
+});
+var crimeMarkers = new L.FeatureGroup();
+
+L.tileLayer('https://api.mapbox.com/styles/v1/lvartani26/cip5w8oa0000bawmhlzghs0yx/tiles/{z}/{x}/{y}?access_token=pk.eyJ1IjoibHZhcnRhbmkyNiIsImEiOiJjaXA1dzd3aWowMWg1d21rbWh4Yjhoc2ZlIn0.O1pCHVLqPC3rmHo5Nv5yOw', {
+  accessToken: 'pk.eyJ1IjoibHZhcnRhbmkyNiIsImEiOiJjaXA1dzd3aWowMWg1d21rbWh4Yjhoc2ZlIn0.O1pCHVLqPC3rmHo5Nv5yOw',
+  maxZoom: 16
+} ).addTo(map);
+
+
+/* Parse JSON file, create charts, draw markers on map */
+d3.json('data/crime.csv', function (error, data) {
+    console.log(data);
+  var crimeData = data;
+
+  console.log(crimeData);
+
+  var fullDateFormat = d3.time.format('%Y-%m-%dT%H:%M:%S.%L');
+  var parseDate = d3.time.format('%Y-%m-%dT%H:%M:%S.%L').parse;
+  var yearFormat = d3.time.format('%Y');
+  var monthFormat = d3.time.format('%b');
+  var dayOfWeekFormat = d3.time.format('%a');
+  var linegraphFormat = d3.time.format('%m/%d/%Y');
+  // normalize/parse data so dc can correctly sort & bin them
+  // I like to think of each "d" as a row in a spreadsheet
+  _.each(crimeData, function(d) {
+
+    // d.count = +d.count;
+    d.first_had_dt = fullDateFormat.parse(d.fromdate);
+
+    d.date = parseDate(d.fromdate);
+    d.first_had_year = +yearFormat(d.first_had_dt);
+    console.log(d.first_had_year);
+    d.first_had_month = monthFormat(d.first_had_dt);
+
+    d.first_had_day = dayOfWeekFormat(d.first_had_dt);
+    d.linedata = linegraphFormat(d.first_had_dt);
+
+
+
+
+    // console.log(d.weapontype);
+    // console.log(d.shooting);
+    // console.log(d.domestic);
+    // console.log(d.incident_type_description);
+
+
+
+  });
+
+  // set crossfilter
+  var ndx = crossfilter(crimeData);
+
+  // create dimensions (x-axis values)
+  var yearDim  = ndx.dimension(function(d) {return d.first_had_year;}),
+      // dc.pluck: short-hand for same kind of anon. function we used for yearDim
+      monthDim  = ndx.dimension(dc.pluck('first_had_month')),
+      dayOfWeekDim = ndx.dimension(dc.pluck('first_had_day')),
+      weaponDim = ndx.dimension(dc.pluck('weapontype')),
+      dateDim = ndx.dimension(function(d){return d.date;}),
+      typeDim = ndx.dimension(function(d) {return d.incident_type_description;}),
+      allDim = ndx.dimension(function(d) {return d;});
+
+      //x-axis
+
+    var minDate = dateDim.bottom(1)[0].date;
+    var maxDate = dateDim.top(1)[0].date;
+    console.log(maxDate);
+
+  // create groups (y-axis values)
+  var all = ndx.groupAll();
+  var countPerYear = yearDim.group().reduceCount(),
+      countPerMonth = monthDim.group().reduceCount(),
+      countPerDay = dayOfWeekDim.group().reduceCount(),
+      countPerWeapon = weaponDim.group().reduceCount(),
+      countPerDate = dateDim.group().reduceCount(),
+      countPerType = typeDim.group().reduceCount();
+    //   countPerABV = abvDim.group().reduceCount(),
+    //   countPerIBU = ibuDim.group().reduceCount();
+
+  // specify charts
+  var yearChart   = dc.pieChart('#chart-ring-year'),
+      monthChart   = dc.pieChart('#chart-ring-month'),
+      dayChart   = dc.pieChart('#chart-ring-day')
+      weaponCountChart  = dc.barChart('#weapon-count'),
+    //   typeCountChart  = dc.barChart('#type-count'),
+      dateCountChart  = dc.lineChart('#date-count'),
+    //   ibuCountChart  = dc.barChart('#chart-ibu-count'),
+      dataCount = dc.dataCount('#data-count')
+      dataTable = dc.dataTable('#data-table');
+
+
+
+
+
+  yearChart
+      .width(150)
+      .height(250)
+      .dimension(yearDim)
+      .group(countPerYear)
+      .innerRadius(50);
+
+  monthChart
+      .width(150)
+      .height(250)
+      .dimension(monthDim)
+      .group(countPerMonth)
+      .innerRadius(50)
+      .ordering(function (d) {
+        var order = {
+          'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4,
+          'May': 5, 'Jun': 6, 'Jul': 7, 'Aug': 8,
+          'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12
+        };
+        return order[d.key];
+      });
+
+  dayChart
+      .width(150)
+      .height(250)
+      .dimension(dayOfWeekDim)
+      .group(countPerDay)
+      .innerRadius(50)
+      .ordering(function (d) {
+        var order = {
+          'Mon': 0, 'Tue': 1, 'Wed': 2, 'Thu': 3,
+          'Fri': 4, 'Sat': 5, 'Sun': 6
+        }
+        return order[d.key];
+      }
+     );
+
+      weaponCountChart
+          .width(600)
+          .height(180)
+          .dimension(weaponDim)
+          .group(countPerWeapon)
+          .x(d3.scale.ordinal())
+          .xUnits(dc.units.ordinal)
+          .brushOn(true)
+          .elasticY(true)
+          .centerBar(true)
+          .xAxisLabel('Weapon')
+          .yAxisLabel('Count')
+          .barPadding(0.1)
+          .outerPadding(0.05);
+
+  //
+    //   typeCountChart
+    //       .width(1200)
+    //       .height(180)
+    //       .dimension(typeDim)
+    //       .group(countPerType)
+    //       .x(d3.scale.ordinal())
+    //       .xUnits(dc.units.ordinal)
+    //       .elasticY(true)
+    //      .brushOn(false)
+    //       .centerBar(true)
+    //       .barPadding(.05)
+    //       .outerPadding(0.05)
+    //       .xAxisLabel('Type')
+    //       .yAxisLabel('Count');
+
+  //
+  dateCountChart
+      .width(600)
+      .height(180)
+      .dimension(dateDim)
+      .group(countPerDate)
+      .x(d3.time.scale().domain([minDate,maxDate]))
+      .elasticX(true)
+      .elasticY(true)
+      .xAxisPadding(100)
+      .xAxisLabel('Date')
+      .yAxisLabel('Count');
+
+
+
+  dataCount
+      .dimension(ndx)
+      .group(all);
+
+   dataTable
+    .dimension(allDim)
+    .group(function (d) { return 'dc.js insists on putting a row here so I remove it using JS'; })
+    .size(100)
+    .columns([
+        function (d) { return d.incident_type_description; },
+        function (d) { return d.domestic; },
+        function (d) { return d.weapontype; },
+        function (d) { return d.shooting; }
+
+
+    ])
+    .sortBy(dc.pluck('incident_type_description'))
+    .order(d3.ascending)
+    .on('renderlet', function (table) {
+      // each time table is rendered remove nasty extra row dc.js insists on adding
+      table.select('tr.dc-table-group').remove();
+
+      // update map with breweries to match filtered data
+      crimeMarkers.clearLayers();
+      _.each(allDim.top(Infinity), function (d) {
+        var loc = d.location;
+        var name = d.incident_type_description;
+        // if (loc.coordinates[1] == "0") {
+        //     console.log(loc);
+        //     loc.coordinates[1] = null;
+        //     loc.coordinates[0] = null;
+        //
+        //     }
+        //  else {
+
+            var myIcon = L.icon({
+                    iconSize:[17, 25],
+                    iconUrl: ''
+
+            });
+
+            if(d.weapontype=="Knife") {
+                    console.log(d.weapontype);
+                    myIcon.options.iconUrl = 'images/orange.png';
+            }
+            else if(d.weapontype=="Other"){
+                myIcon.options.iconUrl= 'images/blue.png';
+            }
+            else if(d.weapontype=="Unarmed"){
+                myIcon.options.iconUrl= 'images/darkblue.png';
+            }
+            else {
+                myIcon.options.iconUrl= 'images/green.png';
+            }
+            console.log(myIcon.options.iconUrl);
+            //var orangeIcon = new Icon({iconUrl: 'images/orange.png'}).addTo(map);
+
+            var marker = L.marker([loc.coordinates[1], loc.coordinates[0]],{icon: myIcon});
+
+            marker.bindPopup("<p>" + name + "  " + d.weapontype + "  " + d.year + "</p>");
+            crimeMarkers.addLayer(marker);
+        //  }
+
+      });
+      map.addLayer(crimeMarkers);
+    //   map.fitBounds(crimeMarkers.getBounds());
+    });
+
+  // register handlers
+  d3.selectAll('a#all').on('click', function () {
+    dc.filterAll();
+    dc.renderAll();
+  });
+
+  d3.selectAll('a#year').on('click', function () {
+    yearChart.filterAll();
+    dc.redrawAll();
+  });
+
+  d3.selectAll('a#month').on('click', function () {
+    monthChart.filterAll();
+    dc.redrawAll();
+  });
+
+  d3.selectAll('a#day').on('click', function () {
+    dayChart.filterAll();
+    dc.redrawAll();
+  });
+
+  // showtime!
+  dc.renderAll();
+
+});
+
+</script>
+<a href="http://www.freepik.com/free-vector/map-pins-set_714010.htm">Designed by Freepik</a>
+</body></html>

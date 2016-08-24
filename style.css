@@ -1,0 +1,10 @@
+div.bar {
+    display: inline-block;
+    width: 20px;
+    background-color: teal;
+}
+
+div.bottom {
+    position:absolute;
+    bottom:0px;
+}
