@@ -8,3 +8,6 @@ div.bottom {
     position:absolute;
     bottom:0px;
 }
+body{
+    font-family:'Montserrat', sans-serif;
+}

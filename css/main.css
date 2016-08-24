@@ -1,4 +1,7 @@
 /* main.css: Add and override styles */
+body {
+    font-family: 'Montserrat', sans-serif;
+}
 .dc-data-count small {
   font-size: 16px;
 }
