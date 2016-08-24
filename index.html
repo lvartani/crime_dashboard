@@ -90,8 +90,8 @@ d3.csv('data/crime.csv', function (error, data) {
 
   console.log(crimeData);
 
-  var fullDateFormat = d3.time.format('%Y-%m-%dT%H:%M:%S.%L');
-  var parseDate = d3.time.format('%Y/%m/%dT %H:%M:%S').parse;
+  var fullDateFormat = d3.time.format('%x %X %p');
+  var parseDate = d3.time.format('%x %X %p').parse;
   var yearFormat = d3.time.format('%Y');
   var monthFormat = d3.time.format('%b');
   var dayOfWeekFormat = d3.time.format('%a');
@@ -102,9 +102,9 @@ d3.csv('data/crime.csv', function (error, data) {
 
     // d.count = +d.count;
     d.first_had_dt = fullDateFormat.parse(d.FROMDATE);
-    console.log(d.first_had_dt);
+    //console.log(d.FROMDATE);
     d.date = parseDate(d.FROMDATE);
-    console.log(d.date);
+    //console.log(d.date);
     d.first_had_year = +yearFormat(d.first_had_dt);
     console.log(d.first_had_year);
     d.first_had_month = monthFormat(d.first_had_dt);
